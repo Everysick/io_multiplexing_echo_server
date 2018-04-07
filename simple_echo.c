@@ -8,12 +8,13 @@
 #include <netinet/in.h>
 
 #define PORT 8080
+#define CONNECTION 100
 
 int main(int argc, char** argv) {
 	struct sockaddr_in saddr, caddr;
 	socklen_t saddrlen, caddrlen;
 	int soc, acc;
-	char buf[1000];
+	char buf[256];
 
 	memset(buf, 0, sizeof(buf));
 
@@ -32,7 +33,7 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
-	if (listen(soc, 10) == -1) {
+	if (listen(soc, CONNECTION) == -1) {
 		fprintf(stderr, "Cannot listen socket\n");
 		return 1;
 	}
@@ -46,6 +47,7 @@ int main(int argc, char** argv) {
 
 		read(acc, buf, sizeof(buf));
 		write(acc, buf, strlen(buf));
+		read(acc, buf, sizeof(buf));
 
 		close(acc);
 	}
