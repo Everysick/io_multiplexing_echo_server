@@ -2,4 +2,5 @@ bin/simple_echo
 bin/thread_echo
 bin/pre_thread_echo
 bin/fork_echo
+bin/pre_fork_echo
 bin/*.dSYM
