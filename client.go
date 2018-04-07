@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"net"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -17,8 +16,10 @@ func request(num int, wg *sync.WaitGroup) {
 	defer func() { count++ }()
 	defer wg.Done()
 
-	strEcho := []byte("hello" + strconv.Itoa(num))
-	reply := make([]byte, len(strEcho))
+	strHello := []byte("Hello")
+	strBye := []byte("Bye")
+
+	reply := make([]byte, 256)
 
 	conn, err := net.DialTimeout("tcp", "localhost:8080", 6*time.Second)
 	if err != nil {
@@ -28,7 +29,7 @@ func request(num int, wg *sync.WaitGroup) {
 
 	defer conn.Close()
 
-	_, err = conn.Write(strEcho)
+	_, err = conn.Write(strHello)
 	if err != nil {
 		failure++
 		return
@@ -37,14 +38,14 @@ func request(num int, wg *sync.WaitGroup) {
 	time.Sleep(250 * time.Millisecond)
 
 	_, err = conn.Read(reply)
-	if err != nil || string(strEcho) != string(reply) {
+	if err != nil {
 		failure++
 		return
 	}
 
 	time.Sleep(250 * time.Millisecond)
 
-	_, err = conn.Write(strEcho)
+	_, err = conn.Write(strBye)
 	if err != nil {
 		failure++
 		return
