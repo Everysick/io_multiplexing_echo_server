@@ -11,32 +11,72 @@
 #include <netinet/in.h>
 
 #define PORT 8080
-#define CONNECTION 1000
+#define MAX_EVENTS 1
+#define CONNECTION 100
 
-int thread_cnt;
+static char reply[256] = "Reply";
+struct epoll_event events[MAX_EVENTS];
 pthread_mutex_t mut;
+int epfd;
 
-void* event(void* arg) {
+void* event_loop(void* arg) {
+	struct epoll_event current_ev;
 	struct sockaddr_in caddr;
 	socklen_t caddrlen;
 	int* soc = (int *)arg;
 	char buf[256];
-	int acc;
+	int acc, nfd;
 
 	caddrlen = sizeof(caddr);
 
 	while(1) {
-		if ((acc = accept(*soc, (struct sockaddr *)&caddr, &caddrlen)) == -1) {
+		pthread_mutex_lock(&mut);
+		switch(nfd = epoll_wait(epfd, events, MAX_EVENTS, -1)) {
+		case -1:
 			fprintf(stderr, "Accept failed\n");
 			pthread_exit(NULL);
-			return 0;
+			break;
+		case 0:
+			fprintf(stderr, "epoll Timeout\n");
+			break;
+		default:
+			current_ev = events[0];
+			epoll_ctl(epfd, EPOLL_CTL_DEL, current_ev.data.fd, NULL);
+			break;
 		}
+		pthread_mutex_unlock(&mut);
 
-		read(acc, buf, sizeof(buf));
-		write(acc, buf, strlen(buf));
-		read(acc, buf, sizeof(buf));
+		if (current_ev.data.fd == *soc) {
 
-		close(acc);
+			if ((acc = accept(*soc, (struct sockaddr *)&caddr, &caddrlen)) == -1) {
+				fprintf(stderr, "Accept failed\n");
+				pthread_exit(NULL);
+				return 0;
+			}
+
+			epoll_ctl(epfd, EPOLL_CTL_ADD, *soc, &current_ev);
+
+			current_ev.data.fd = acc;
+			current_ev.events = EPOLLIN;
+
+			epoll_ctl(epfd, EPOLL_CTL_ADD, acc, &current_ev);
+		} else {
+			if (current_ev.events & EPOLLIN) {
+				read(current_ev.data.fd, buf, sizeof(buf));
+
+				if (strcmp("Hello", buf) == 0) {
+					current_ev.events = EPOLLOUT;
+					epoll_ctl(epfd, EPOLL_CTL_ADD, current_ev.data.fd, &current_ev);
+				} else {
+					close(current_ev.data.fd);
+				}
+			} else if (current_ev.events & EPOLLOUT) {
+				write(current_ev.data.fd, reply, strlen(reply));
+
+				current_ev.events = EPOLLIN;
+				epoll_ctl(epfd, EPOLL_CTL_ADD, current_ev.data.fd, &current_ev);
+			}
+		}
 	}
 
 	pthread_exit(NULL);
@@ -46,10 +86,10 @@ void* event(void* arg) {
 int main(int argc, char** argv) {
 	pthread_t th[CONNECTION];
 	struct sockaddr_in saddr;
+	struct epoll_event ev;
 	socklen_t saddrlen;
 	int soc;
 
-	thread_cnt = 0;
 	pthread_mutex_init(&mut, NULL);
 
 	if ((soc = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
@@ -72,8 +112,19 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
+	if ((epfd = epoll_create1(0)) == -1) {
+		fprintf(stderr, "epoll create failed\n");
+	}
+
+	ev.data.fd = soc;
+	ev.events = EPOLLIN;
+
+	if (epoll_ctl(epfd, EPOLL_CTL_ADD, soc, &ev) == -1) {
+		fprintf(stderr, "epoll create failed\n");
+	}
+
 	for (int i = 0; i < CONNECTION; i++) {
-		pthread_create(&th[i], NULL, &event, &soc);
+		pthread_create(&th[i], NULL, &event_loop, &soc);
 	}
 
 	for (int i = 0; i < CONNECTION; i++) {
