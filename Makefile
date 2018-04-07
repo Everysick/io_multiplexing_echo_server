@@ -1,5 +1,5 @@
 CFLAGS=-std=gnu99 -g -Wall
-TARGET=simple_echo thread_echo pre_thread_echo fork_echo pre_fork_echo
+TARGET=simple_echo thread_echo pre_thread_echo fork_echo pre_fork_echo epoll_pre_thread_echo
 
 all: $(TARGET)
 
@@ -10,6 +10,9 @@ thread_echo: thread_echo.c
 	$(CC) $(CFLAGS) -o bin/$@ $<
 
 pre_thread_echo: pre_thread_echo.c
+	$(CC) $(CFLAGS) -o bin/$@ $<
+
+epoll_pre_thread_echo: epoll_pre_thread_echo.c
 	$(CC) $(CFLAGS) -o bin/$@ $<
 
 fork_echo: fork_echo.c
