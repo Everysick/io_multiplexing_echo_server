@@ -9,7 +9,7 @@
 #include <netinet/in.h>
 
 #define PORT 8080
-#define CONNECTION 100
+#define CONNECTION 1000
 
 int thread_cnt;
 pthread_mutex_t mut;
@@ -24,13 +24,11 @@ void* event(void* arg) {
 	caddrlen = sizeof(caddr);
 
 	while(1) {
-		pthread_mutex_lock(&mut);
 		if ((acc = accept(*soc, (struct sockaddr *)&caddr, &caddrlen)) == -1) {
 			fprintf(stderr, "Accept failed\n");
 			pthread_exit(NULL);
 			return 0;
 		}
-		pthread_mutex_unlock(&mut);
 
 		read(acc, buf, sizeof(buf));
 		write(acc, buf, strlen(buf));
