@@ -4,51 +4,73 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 )
 
-func request(wg *sync.WaitGroup) {
+var success int
+var failure int
+var count int
+
+func request(num int, wg *sync.WaitGroup) {
+	defer func() { count++ }()
 	defer wg.Done()
 
-	strEcho := "hello"
-	reply := make([]byte, 256)
+	strEcho := []byte("hello" + strconv.Itoa(num))
+	reply := make([]byte, len(strEcho))
 
 	conn, err := net.DialTimeout("tcp", "localhost:8080", 6*time.Second)
 	if err != nil {
-		fmt.Printf("Dial error: %s\n", err)
+		failure++
 		return
 	}
 
 	defer conn.Close()
 
-	_, err = conn.Write([]byte(strEcho))
+	_, err = conn.Write(strEcho)
 	if err != nil {
-		println("error request")
+		failure++
 		return
 	}
+
+	time.Sleep(250 * time.Millisecond)
 
 	_, err = conn.Read(reply)
-	if err != nil {
-		println("error request")
+	if err != nil || string(strEcho) != string(reply) {
+		failure++
 		return
 	}
 
-	println("done request")
+	time.Sleep(250 * time.Millisecond)
+
+	_, err = conn.Write(strEcho)
+	if err != nil {
+		failure++
+		return
+	}
+
+	success++
 }
 
 func main() {
 	var cnt int
 	var wg sync.WaitGroup
 
+	count = 0
+	success = 0
+	failure = 0
+
 	flag.IntVar(&cnt, "n", 10, "count of request")
 	flag.Parse()
 
-	for i := 1; i <= cnt; i++ {
-		wg.Add(1)
-		go request(&wg)
+	wg.Add(cnt)
+
+	for i := 0; i < cnt; i++ {
+		go request(i, &wg)
 	}
 
 	wg.Wait()
-	println("Group done")
+
+	fmt.Printf("All: %d, Success: %d, Failure: %d \n", count, success, failure)
 }
