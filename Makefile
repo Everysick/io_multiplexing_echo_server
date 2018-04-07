@@ -1,4 +1,4 @@
-CFLAGS=-std=gnu99 -g -Wall
+CFLAGS=-std=gnu99 -g -Wall -pthread
 TARGET=simple_echo thread_echo pre_thread_echo fork_echo pre_fork_echo epoll_pre_thread_echo
 
 all: $(TARGET)
