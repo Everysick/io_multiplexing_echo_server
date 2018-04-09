@@ -9,9 +9,8 @@
 #include <netinet/in.h>
 
 #define PORT 8080
-#define CONNECTION 100
+#define CONNECTION 1000
 #define WORKER 10
-#define MUL 50
 
 int thread_cnt;
 pthread_mutex_t mut;
@@ -20,10 +19,10 @@ void* event(void* arg) {
 	char buf[256];
 	int* fd = (int *)arg;
 
-	for (int i = 0; i < MUL; i++) {
+	do {
 		read(*fd, buf, sizeof(buf));
 		write(*fd, buf, strlen(buf));
-	}
+	} while (strcmp(buf, "Hello") == 0);
 
 	read(*fd, buf, sizeof(buf));
 
@@ -73,12 +72,12 @@ int main(int argc, char** argv) {
 	while(1) {
 		int* acc = malloc(sizeof(int));
 
-		while(thread_cnt >= WORKER);
-
 		if ((*acc = accept(soc, (struct sockaddr *)&caddr, &caddrlen)) == -1) {
 			fprintf(stderr, "Accept failed\n");
 			return 1;
 		}
+
+		while(thread_cnt >= WORKER);
 
 		pthread_mutex_lock(&mut);
 		if (thread_cnt < WORKER) {

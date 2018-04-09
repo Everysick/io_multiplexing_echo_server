@@ -11,7 +11,7 @@
 
 #define PORT 8080
 #define MAX_EVENTS 1
-#define CONNECTION 100
+#define CONNECTION 1000
 
 static int epoll_mask = EPOLLONESHOT | EPOLLET;
 

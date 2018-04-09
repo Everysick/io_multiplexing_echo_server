@@ -8,7 +8,7 @@
 #include <netinet/in.h>
 
 #define PORT 8080
-#define CONNECTION 100
+#define CONNECTION 1000
 #define MUL 50
 
 int main(int argc, char** argv) {
@@ -49,10 +49,10 @@ int main(int argc, char** argv) {
 			return 1;
 		}
 
-		for (int i = 0; i < MUL; i++) {
+		do {
 			read(acc, buf, sizeof(buf));
 			write(acc, buf, strlen(buf));
-		}
+		} while (strcmp(buf, "Hello") == 0);
 
 		read(acc, buf, sizeof(buf));
 

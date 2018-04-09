@@ -9,7 +9,7 @@
 #include <netinet/in.h>
 
 #define PORT 8080
-#define CONNECTION 100
+#define CONNECTION 1000
 #define WORKER 10
 #define MUL 50
 
@@ -32,10 +32,10 @@ void* event(void* arg) {
 			return 0;
 		}
 
-		for (int i = 0; i < MUL; i++) {
+		do {
 			read(acc, buf, sizeof(buf));
 			write(acc, buf, strlen(buf));
-		}
+		} while (strcmp(buf, "Hello") == 0);
 
 		read(acc, buf, sizeof(buf));
 
