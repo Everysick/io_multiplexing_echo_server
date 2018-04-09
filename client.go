@@ -17,7 +17,7 @@ func request(mul int, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	strHello := []byte("Hello")
-	strBye := []byte("Bye")
+	strBye := []byte("Bye!!")
 
 	reply := make([]byte, 256)
 
@@ -29,8 +29,6 @@ func request(mul int, wg *sync.WaitGroup) {
 
 	defer conn.Close()
 
-	time.Sleep(500 * time.Millisecond)
-
 	for i := 0; i < mul; i++ {
 		_, err = conn.Write(strHello)
 		if err != nil {
@@ -38,16 +36,13 @@ func request(mul int, wg *sync.WaitGroup) {
 			return
 		}
 
-		time.Sleep(250 * time.Millisecond)
-
 		_, err = conn.Read(reply)
 		if err != nil {
 			failure++
 			return
 		}
-	}
 
-	time.Sleep(250 * time.Millisecond)
+	}
 
 	_, err = conn.Write(strBye)
 	if err != nil {
