@@ -9,7 +9,7 @@
 #include <netinet/in.h>
 
 #define PORT 8080
-#define CONNECTION 1000
+#define CONNECTION 1000 // upper limit: net.core.somaxconn
 #define WORKER 30
 #define MUL 50
 
@@ -35,7 +35,7 @@ void* event(void* arg) {
 		do {
 			read(acc, buf, sizeof(buf));
 			write(acc, buf, strlen(buf));
-		} while (strcmp(buf, "Hello") == 0);
+		} while (strcmp(buf, "Bye!!") != 0);
 
 		read(acc, buf, sizeof(buf));
 

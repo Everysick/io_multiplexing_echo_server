@@ -13,7 +13,7 @@
 
 #define PORT 8080
 #define MAX_EVENTS 1
-#define CONNECTION 1000
+#define CONNECTION 1000 // upper limit: net.core.somaxconn
 #define WORKER 30
 
 static char reply[256] = "Reply";
@@ -54,14 +54,16 @@ void* event_loop() {
 			if (current_ev.events & EPOLLIN) {
 				read(current_ev.data.fd, buf, sizeof(buf));
 
-				if (strcmp("Hello", buf) == 0) {
-					current_ev.events = EPOLLOUT | epoll_mask;
-					epoll_ctl(epfd, EPOLL_CTL_MOD, current_ev.data.fd, &current_ev);
-				} else {
+				if (strcmp("Bye!!", buf) == 0) {
 					epoll_ctl(epfd, EPOLL_CTL_DEL, current_ev.data.fd, NULL);
 					close(current_ev.data.fd);
+				} else {
+					// current_ev.data.ptr = reply; // Set reply ptr here
+					current_ev.events = EPOLLOUT | epoll_mask;
+					epoll_ctl(epfd, EPOLL_CTL_MOD, current_ev.data.fd, &current_ev);
 				}
 			} else if (current_ev.events & EPOLLOUT) {
+				// reply = (char *)current_ev.data.ptr; // Get reply ptr here
 				write(current_ev.data.fd, reply, strlen(reply));
 
 				current_ev.events = EPOLLIN | epoll_mask;

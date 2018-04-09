@@ -9,7 +9,7 @@
 #include <netinet/in.h>
 
 #define PORT 8080
-#define CONNECTION 1000
+#define CONNECTION 1000 // upper limit: net.core.somaxconn
 #define WORKER 10
 
 int thread_cnt;
@@ -22,7 +22,7 @@ void* event(void* arg) {
 	do {
 		read(*fd, buf, sizeof(buf));
 		write(*fd, buf, strlen(buf));
-	} while (strcmp(buf, "Hello") == 0);
+	} while (strcmp(buf, "Bye!!") != 0);
 
 	read(*fd, buf, sizeof(buf));
 
