@@ -63,8 +63,8 @@ func main() {
 	success = 0
 	failure = 0
 
-	flag.IntVar(&cnt, "n", 10, "count of request")
-	flag.IntVar(&mul, "m", 10, "count of request")
+	flag.IntVar(&cnt, "n", 10, "Number of client")
+	flag.IntVar(&mul, "m", 10, "Number of echo request per client")
 	flag.Parse()
 
 	wg.Add(cnt)
