@@ -24,6 +24,9 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
+	int on = 1;
+	setsockopt(soc, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+
 	saddr.sin_family      = AF_INET;
 	saddr.sin_port        = htons(PORT);
 	saddr.sin_addr.s_addr = INADDR_ANY;
