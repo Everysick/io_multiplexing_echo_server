@@ -13,12 +13,17 @@
 
 #define PORT 8080
 #define CONNECTION 100
+#define WORKER 10
+#define MUL 10
 
 void event(int acc) {
 	char buf[256];
 
-	read(acc, buf, sizeof(buf));
-	write(acc, buf, strlen(buf));
+	for (int i = 0; i < MUL; i++) {
+		read(acc, buf, sizeof(buf));
+		write(acc, buf, strlen(buf));
+	}
+
 	read(acc, buf, sizeof(buf));
 
 	close(acc);

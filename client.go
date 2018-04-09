@@ -12,7 +12,7 @@ var success int
 var failure int
 var count int
 
-func request(num int, wg *sync.WaitGroup) {
+func request(mul int, wg *sync.WaitGroup) {
 	defer func() { count++ }()
 	defer wg.Done()
 
@@ -29,18 +29,22 @@ func request(num int, wg *sync.WaitGroup) {
 
 	defer conn.Close()
 
-	_, err = conn.Write(strHello)
-	if err != nil {
-		failure++
-		return
-	}
+	time.Sleep(500 * time.Millisecond)
 
-	time.Sleep(250 * time.Millisecond)
+	for i := 0; i < mul; i++ {
+		_, err = conn.Write(strHello)
+		if err != nil {
+			failure++
+			return
+		}
 
-	_, err = conn.Read(reply)
-	if err != nil {
-		failure++
-		return
+		time.Sleep(250 * time.Millisecond)
+
+		_, err = conn.Read(reply)
+		if err != nil {
+			failure++
+			return
+		}
 	}
 
 	time.Sleep(250 * time.Millisecond)
@@ -56,6 +60,8 @@ func request(num int, wg *sync.WaitGroup) {
 
 func main() {
 	var cnt int
+	var mul int
+
 	var wg sync.WaitGroup
 
 	count = 0
@@ -63,12 +69,13 @@ func main() {
 	failure = 0
 
 	flag.IntVar(&cnt, "n", 10, "count of request")
+	flag.IntVar(&mul, "m", 10, "count of request")
 	flag.Parse()
 
 	wg.Add(cnt)
 
 	for i := 0; i < cnt; i++ {
-		go request(i, &wg)
+		go request(mul, &wg)
 	}
 
 	wg.Wait()

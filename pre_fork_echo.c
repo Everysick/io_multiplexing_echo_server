@@ -13,6 +13,8 @@
 
 #define PORT 8080
 #define CONNECTION 100
+#define WORKER 10
+#define MUL 10
 
 void event(int soc) {
 	struct sockaddr_in caddr;
@@ -20,15 +22,19 @@ void event(int soc) {
 	int acc;
 	char buf[256];
 
+	caddrlen = sizeof(caddr);
+
 	while(1) {
-		caddrlen = sizeof(caddr);
 		if ((acc = accept(soc, (struct sockaddr *)&caddr, &caddrlen)) == -1) {
 			fprintf(stderr, "Accept failed\n");
 			return;
 		}
 
-		read(acc, buf, sizeof(buf));
-		write(acc, buf, strlen(buf));
+		for (int i = 0; i < MUL; i++) {
+			read(acc, buf, sizeof(buf));
+			write(acc, buf, strlen(buf));
+		}
+
 		read(acc, buf, sizeof(buf));
 
 		close(acc);
@@ -64,7 +70,7 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
-	for (int i = 0; i < CONNECTION; i++) {
+	for (int i = 0; i < WORKER; i++) {
 		pid = fork();
 		pids[i] = pid;
 
@@ -76,7 +82,7 @@ int main(int argc, char** argv) {
 
 	close(soc);
 
-	for (int i = 0; i < CONNECTION; i++) {
+	for (int i = 0; i < WORKER; i++) {
 		int status;
 		waitpid(pids[i], &status, 0);
 	}

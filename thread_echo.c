@@ -10,6 +10,8 @@
 
 #define PORT 8080
 #define CONNECTION 100
+#define WORKER 10
+#define MUL 10
 
 int thread_cnt;
 pthread_mutex_t mut;
@@ -18,8 +20,11 @@ void* event(void* arg) {
 	char buf[256];
 	int* fd = (int *)arg;
 
-	read(*fd, buf, sizeof(buf));
-	write(*fd, buf, strlen(buf));
+	for (int i = 0; i < MUL; i++) {
+		read(*fd, buf, sizeof(buf));
+		write(*fd, buf, strlen(buf));
+	}
+
 	read(*fd, buf, sizeof(buf));
 
 	close(*fd);
@@ -33,13 +38,14 @@ void* event(void* arg) {
 }
 
 int main(int argc, char** argv) {
-	pthread_t th[CONNECTION];
+	pthread_t th[WORKER];
 	struct sockaddr_in saddr, caddr;
 	socklen_t saddrlen, caddrlen;
 	int soc;
 
 	thread_cnt = 0;
 	pthread_mutex_init(&mut, NULL);
+	caddrlen = sizeof(caddr);
 
 	if ((soc = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
 		fprintf(stderr, "Cannot make socket\n");
@@ -64,14 +70,15 @@ int main(int argc, char** argv) {
 	while(1) {
 		int* acc = malloc(sizeof(int));
 
-		caddrlen = sizeof(caddr);
+		while(thread_cnt >= WORKER);
+
 		if ((*acc = accept(soc, (struct sockaddr *)&caddr, &caddrlen)) == -1) {
 			fprintf(stderr, "Accept failed\n");
 			return 1;
 		}
 
 		pthread_mutex_lock(&mut);
-		if (thread_cnt < CONNECTION) {
+		if (thread_cnt < WORKER) {
 			thread_cnt++;
 			pthread_create(&th[thread_cnt - 1], NULL, &event, acc);
 		} else {

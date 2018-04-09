@@ -10,6 +10,8 @@
 
 #define PORT 8080
 #define CONNECTION 1000
+#define WORKER 10
+#define MUL 10
 
 int thread_cnt;
 pthread_mutex_t mut;
@@ -30,8 +32,11 @@ void* event(void* arg) {
 			return 0;
 		}
 
-		read(acc, buf, sizeof(buf));
-		write(acc, buf, strlen(buf));
+		for (int i = 0; i < MUL; i++) {
+			read(acc, buf, sizeof(buf));
+			write(acc, buf, strlen(buf));
+		}
+
 		read(acc, buf, sizeof(buf));
 
 		close(acc);
@@ -42,7 +47,7 @@ void* event(void* arg) {
 }
 
 int main(int argc, char** argv) {
-	pthread_t th[CONNECTION];
+	pthread_t th[WORKER];
 	struct sockaddr_in saddr;
 	socklen_t saddrlen;
 	int soc;
@@ -70,11 +75,11 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
-	for (int i = 0; i < CONNECTION; i++) {
+	for (int i = 0; i < WORKER; i++) {
 		pthread_create(&th[i], NULL, &event, &soc);
 	}
 
-	for (int i = 0; i < CONNECTION; i++) {
+	for (int i = 0; i < WORKER; i++) {
 		pthread_join(th[i], NULL);
 	}
 
