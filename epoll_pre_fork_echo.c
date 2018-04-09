@@ -15,11 +15,66 @@
 #define CONNECTION 100
 #define WORKER 10
 
-static char reply[256] = "Reply";
+int recv_fd(int server) {
+	pid_t message;
 
-void event_loop(int soc) {
-	struct sockaddr_in caddr;
-	socklen_t caddrlen;
+	struct msghdr msg;
+	struct iovec iov;
+	char cmsgbuf[CMSG_SPACE(sizeof(int))];
+
+	iov.iov_base = &message;
+	iov.iov_len = sizeof(message);
+
+	msg.msg_name = NULL;
+	msg.msg_namelen = 0;
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+	msg.msg_control = cmsgbuf;
+	msg.msg_controllen = sizeof(cmsgbuf);
+	msg.msg_flags = MSG_WAITALL;
+
+	if (recvmsg(server, &msg, 0) < 0) {
+		return -1;
+	}
+
+	struct cmsghdr *cmsg = (struct cmsghdr*)cmsgbuf;
+	return *((int *)CMSG_DATA(cmsg));
+}
+
+int send_fd(int client, int fd) {
+	pid_t message = getpid();
+
+	struct iovec iov;
+	char cmsgbuf[CMSG_SPACE(sizeof(int))];
+
+	iov.iov_base = &message;
+	iov.iov_len = sizeof(message);
+
+	struct cmsghdr *cmsg = (struct cmsghdr*)cmsgbuf;
+	cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+	cmsg->cmsg_level = SOL_SOCKET;
+	cmsg->cmsg_type = SCM_RIGHTS;
+	*((int *)CMSG_DATA(cmsg)) = fd;
+
+	struct msghdr msg;
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_name = NULL;
+	msg.msg_namelen = 0;
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+	msg.msg_control = cmsgbuf;
+	msg.msg_controllen = sizeof(cmsgbuf);
+	msg.msg_flags = 0;
+
+	if (sendmsg(client, &msg, 0) < 0) {
+		return -1;
+	}
+
+	return 0;
+}
+
+static char reply[256] = "Reply";
+void event_loop(int pfd) {
 	struct epoll_event current_ev, ev;
 	struct epoll_event events[MAX_EVENTS];
 	char buf[256];
@@ -30,10 +85,10 @@ void event_loop(int soc) {
 		fprintf(stderr, "epoll create failed\n");
 	}
 
-	ev.data.fd = soc;
+	ev.data.fd = pfd;
 	ev.events = EPOLLIN;
 
-	if (epoll_ctl(epfd, EPOLL_CTL_ADD, soc, &ev) == -1) {
+	if (epoll_ctl(epfd, EPOLL_CTL_ADD, ev.data.fd, &ev) == -1) {
 		fprintf(stderr, "epoll add failed\n");
 	}
 
@@ -49,19 +104,19 @@ void event_loop(int soc) {
 			for (int i = 0; i < nfd; i++) {
 				current_ev = events[i];
 
-				if (current_ev.data.fd == soc) {
-					if ((acc = accept(soc, (struct sockaddr *)&caddr, &caddrlen)) == -1) {
-						fprintf(stderr, "Accept failed\n");
-						close(soc);
-						return;
+				if (current_ev.data.fd == pfd) {
+					//printf("Event\n");
+
+					if ((acc = recv_fd(pfd)) == -1) {
+						fprintf(stderr, "Recv failed\n");
 					}
 
 					//printf("Hello %d\n", acc);
 
-					ev.data.fd = acc;
-					ev.events = EPOLLIN | EPOLLOUT;
+					current_ev.data.fd = acc;
+					current_ev.events = EPOLLIN | EPOLLOUT;
 
-					epoll_ctl(epfd, EPOLL_CTL_ADD, acc, &ev);
+					epoll_ctl(epfd, EPOLL_CTL_ADD, acc, &current_ev);
 				} else if (current_ev.events & EPOLLIN) {
 					read(current_ev.data.fd, buf, sizeof(buf));
 					//printf("[%d] Read from %d: %s\n", (int)self, current_ev.data.fd, buf);
@@ -80,15 +135,15 @@ void event_loop(int soc) {
 		}
 	}
 
-	close(soc);
+	close(pfd);
 	return;
 }
 
 int main(int argc, char** argv) {
-	pid_t pids[CONNECTION];
-	struct sockaddr_in saddr;
-	socklen_t saddrlen;
-	int soc;
+	pid_t pids[WORKER];
+	struct sockaddr_in saddr, caddr;
+	socklen_t saddrlen, caddrlen;
+	int acc, soc, current_client = 0, cfds[WORKER];
 
 	if ((soc = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
 		fprintf(stderr, "Cannot make socket\n");
@@ -103,6 +158,8 @@ int main(int argc, char** argv) {
 	saddr.sin_addr.s_addr = INADDR_ANY;
 
 	saddrlen = sizeof(saddr);
+	caddrlen = sizeof(caddr);
+
 	if (bind(soc, (struct sockaddr *)&saddr, saddrlen) == -1) {
 		fprintf(stderr, "Cannot bind socket\n");
 		return 1;
@@ -114,15 +171,40 @@ int main(int argc, char** argv) {
 	}
 
 	for (int i = 0; i < WORKER; i++) {
+		int fds[2];
+
+		socketpair(AF_LOCAL, SOCK_DGRAM, 0, fds);
+
+		cfds[i] = fds[0];
 		pids[i] = fork();
 
 		if (pids[i] == 0) {
-			event_loop(soc);
+			for (int j = 0; j < i; j++) {
+				close(cfds[j]);
+			}
+
+			close(fds[0]);
+			event_loop(fds[1]);
 			exit(0);
 		}
+
+		close(fds[1]);
 	}
 
-	close(soc);
+	while (1) {
+		if ((acc = accept(soc, (struct sockaddr *)&caddr, &caddrlen)) == -1) {
+			fprintf(stderr, "Accept failed\n");
+			return 0;
+		}
+
+		if (send_fd(cfds[current_client], acc) == -1) {
+			fprintf(stderr, "Send failed\n");
+			return 0;
+		}
+
+		current_client = (current_client + 1) % WORKER;
+		close(acc);
+	}
 
 	for (int i = 0; i < WORKER; i++) {
 		int status;
