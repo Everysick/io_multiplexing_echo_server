@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <sys/types.h>
+#include <sys/syscall.h>
 #include <sys/socket.h>
 
 #include <sys/epoll.h>
@@ -13,21 +14,25 @@
 #define PORT 8080
 #define MAX_EVENTS 1
 #define CONNECTION 100
+#define WORKER 10
 
 static char reply[256] = "Reply";
-struct epoll_event events[MAX_EVENTS];
 pthread_mutex_t mut;
 int epfd;
 
-void* event_loop(void* arg) {
-	struct epoll_event current_ev;
-	struct sockaddr_in caddr;
-	socklen_t caddrlen;
-	int* soc = (int *)arg;
-	char buf[256];
-	int acc, nfd;
+static int epoll_opt = EPOLLONESHOT | EPOLLET;
 
-	caddrlen = sizeof(caddr);
+pid_t gettid(void)
+{
+	return syscall(SYS_gettid);
+}
+
+void* event_loop() {
+	struct epoll_event current_ev;
+	struct epoll_event events[MAX_EVENTS];
+	char buf[256];
+	int nfd = 0;
+	//pid_t self = gettid();
 
 	while(1) {
 		pthread_mutex_lock(&mut);
@@ -40,43 +45,38 @@ void* event_loop(void* arg) {
 			fprintf(stderr, "epoll Timeout\n");
 			break;
 		default:
-			current_ev = events[0];
-			epoll_ctl(epfd, EPOLL_CTL_DEL, current_ev.data.fd, NULL);
+			for (int i = 0; i < nfd; i++) {
+				//epoll_ctl(epfd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
+			}
+
 			break;
 		}
 		pthread_mutex_unlock(&mut);
 
-		if (current_ev.data.fd == *soc) {
+		for (int i = 0; i < nfd; i++) {
+			current_ev = events[i];
 
-			if ((acc = accept(*soc, (struct sockaddr *)&caddr, &caddrlen)) == -1) {
-				fprintf(stderr, "Accept failed\n");
-				pthread_exit(NULL);
-				return 0;
-			}
-
-			epoll_ctl(epfd, EPOLL_CTL_ADD, *soc, &current_ev);
-
-			current_ev.data.fd = acc;
-			current_ev.events = EPOLLIN;
-
-			epoll_ctl(epfd, EPOLL_CTL_ADD, acc, &current_ev);
-		} else {
 			if (current_ev.events & EPOLLIN) {
 				read(current_ev.data.fd, buf, sizeof(buf));
+				//printf("[%d] Read from %d: %s\n", (int)self, current_ev.data.fd, buf);
 
 				if (strcmp("Hello", buf) == 0) {
-					current_ev.events = EPOLLOUT;
-					epoll_ctl(epfd, EPOLL_CTL_ADD, current_ev.data.fd, &current_ev);
+					current_ev.events = epoll_opt | EPOLLOUT;
+					epoll_ctl(epfd, EPOLL_CTL_MOD, current_ev.data.fd, &current_ev);
 				} else {
+					//printf("[%d] Close: %d\n", (int)self, current_ev.data.fd);
 					close(current_ev.data.fd);
 				}
 			} else if (current_ev.events & EPOLLOUT) {
+				//printf("[%d] Write to %d: %s\n", (int)self, current_ev.data.fd, reply);
+
 				write(current_ev.data.fd, reply, strlen(reply));
 
-				current_ev.events = EPOLLIN;
-				epoll_ctl(epfd, EPOLL_CTL_ADD, current_ev.data.fd, &current_ev);
+				current_ev.events = epoll_opt | EPOLLIN;
+				epoll_ctl(epfd, EPOLL_CTL_MOD, current_ev.data.fd, &current_ev);
 			}
 		}
+
 	}
 
 	pthread_exit(NULL);
@@ -84,11 +84,11 @@ void* event_loop(void* arg) {
 }
 
 int main(int argc, char** argv) {
-	pthread_t th[CONNECTION];
-	struct sockaddr_in saddr;
+	pthread_t th[WORKER];
+	struct sockaddr_in saddr, caddr;
 	struct epoll_event ev;
-	socklen_t saddrlen;
-	int soc;
+	socklen_t saddrlen, caddrlen;
+	int soc, acc;
 
 	pthread_mutex_init(&mut, NULL);
 
@@ -96,6 +96,9 @@ int main(int argc, char** argv) {
 		fprintf(stderr, "Cannot make socket\n");
 		return 1;
 	}
+
+	int on = 1;
+	setsockopt(soc, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
 
 	saddr.sin_family      = AF_INET;
 	saddr.sin_port        = htons(PORT);
@@ -116,18 +119,33 @@ int main(int argc, char** argv) {
 		fprintf(stderr, "epoll create failed\n");
 	}
 
-	ev.data.fd = soc;
-	ev.events = EPOLLIN;
+	/* ev.data.fd = soc; */
+	/* ev.events = EPOLLIN; */
 
-	if (epoll_ctl(epfd, EPOLL_CTL_ADD, soc, &ev) == -1) {
-		fprintf(stderr, "epoll create failed\n");
+	/* if (epoll_ctl(epfd, EPOLL_CTL_ADD, soc, &ev) == -1) { */
+	/* 	fprintf(stderr, "epoll create failed\n"); */
+	/* } */
+
+	for (int i = 0; i < WORKER; i++) {
+		pthread_create(&th[i], NULL, &event_loop, NULL);
 	}
 
-	for (int i = 0; i < CONNECTION; i++) {
-		pthread_create(&th[i], NULL, &event_loop, &soc);
+	while(1) {
+		if ((acc = accept(soc, (struct sockaddr *)&caddr, &caddrlen)) == -1) {
+			fprintf(stderr, "Accept failed\n");
+			pthread_exit(NULL);
+			return 0;
+		}
+
+		ev.data.fd = acc;
+		ev.events = epoll_opt | EPOLLIN;
+
+		//printf("Hello %d\n", acc);
+
+		epoll_ctl(epfd, EPOLL_CTL_ADD, acc, &ev);
 	}
 
-	for (int i = 0; i < CONNECTION; i++) {
+	for (int i = 0; i < WORKER; i++) {
 		pthread_join(th[i], NULL);
 	}
 
