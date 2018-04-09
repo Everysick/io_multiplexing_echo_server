@@ -9,7 +9,7 @@
 #include <netinet/in.h>
 
 #define PORT 8080
-#define CONNECTION 1000
+#define CONNECTION 100
 #define WORKER 10
 #define MUL 50
 
