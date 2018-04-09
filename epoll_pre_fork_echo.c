@@ -13,7 +13,7 @@
 #define PORT 8080
 #define MAX_EVENTS 1
 #define CONNECTION 1000
-#define WORKER 10
+#define WORKER 30
 
 int recv_fd(int server) {
 	pid_t message;

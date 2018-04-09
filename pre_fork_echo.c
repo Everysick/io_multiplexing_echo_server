@@ -13,7 +13,7 @@
 
 #define PORT 8080
 #define CONNECTION 1000
-#define WORKER 10
+#define WORKER 30
 #define MUL 50
 
 void event(int soc) {

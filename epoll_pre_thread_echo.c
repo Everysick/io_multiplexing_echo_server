@@ -14,7 +14,7 @@
 #define PORT 8080
 #define MAX_EVENTS 1
 #define CONNECTION 1000
-#define WORKER 50
+#define WORKER 30
 
 static char reply[256] = "Reply";
 pthread_mutex_t mut;
