@@ -11,7 +11,7 @@
 #define PORT 8080
 #define CONNECTION 100
 #define WORKER 10
-#define MUL 10
+#define MUL 50
 
 int thread_cnt;
 pthread_mutex_t mut;

@@ -9,7 +9,7 @@
 
 #define PORT 8080
 #define CONNECTION 100
-#define MUL 10
+#define MUL 50
 
 int main(int argc, char** argv) {
 	struct sockaddr_in saddr, caddr;
