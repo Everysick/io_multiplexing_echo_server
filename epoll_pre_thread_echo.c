@@ -13,14 +13,14 @@
 
 #define PORT 8080
 #define MAX_EVENTS 1
-#define CONNECTION 100
-#define WORKER 10
+#define CONNECTION 1000
+#define WORKER 50
 
 static char reply[256] = "Reply";
 pthread_mutex_t mut;
 int epfd;
 
-static int epoll_opt = EPOLLONESHOT | EPOLLET;
+static int epoll_mask = EPOLLONESHOT | EPOLLET;
 
 pid_t gettid(void)
 {
@@ -32,7 +32,6 @@ void* event_loop() {
 	struct epoll_event events[MAX_EVENTS];
 	char buf[256];
 	int nfd = 0;
-	//pid_t self = gettid();
 
 	while(1) {
 		pthread_mutex_lock(&mut);
@@ -45,10 +44,6 @@ void* event_loop() {
 			fprintf(stderr, "epoll Timeout\n");
 			break;
 		default:
-			for (int i = 0; i < nfd; i++) {
-				//epoll_ctl(epfd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
-			}
-
 			break;
 		}
 		pthread_mutex_unlock(&mut);
@@ -58,21 +53,18 @@ void* event_loop() {
 
 			if (current_ev.events & EPOLLIN) {
 				read(current_ev.data.fd, buf, sizeof(buf));
-				//printf("[%d] Read from %d: %s\n", (int)self, current_ev.data.fd, buf);
 
 				if (strcmp("Hello", buf) == 0) {
-					current_ev.events = epoll_opt | EPOLLOUT;
+					current_ev.events = EPOLLOUT | epoll_mask;
 					epoll_ctl(epfd, EPOLL_CTL_MOD, current_ev.data.fd, &current_ev);
 				} else {
-					//printf("[%d] Close: %d\n", (int)self, current_ev.data.fd);
+					epoll_ctl(epfd, EPOLL_CTL_DEL, current_ev.data.fd, NULL);
 					close(current_ev.data.fd);
 				}
 			} else if (current_ev.events & EPOLLOUT) {
-				//printf("[%d] Write to %d: %s\n", (int)self, current_ev.data.fd, reply);
-
 				write(current_ev.data.fd, reply, strlen(reply));
 
-				current_ev.events = epoll_opt | EPOLLIN;
+				current_ev.events = EPOLLIN | epoll_mask;
 				epoll_ctl(epfd, EPOLL_CTL_MOD, current_ev.data.fd, &current_ev);
 			}
 		}
@@ -119,13 +111,6 @@ int main(int argc, char** argv) {
 		fprintf(stderr, "epoll create failed\n");
 	}
 
-	/* ev.data.fd = soc; */
-	/* ev.events = EPOLLIN; */
-
-	/* if (epoll_ctl(epfd, EPOLL_CTL_ADD, soc, &ev) == -1) { */
-	/* 	fprintf(stderr, "epoll create failed\n"); */
-	/* } */
-
 	for (int i = 0; i < WORKER; i++) {
 		pthread_create(&th[i], NULL, &event_loop, NULL);
 	}
@@ -138,9 +123,7 @@ int main(int argc, char** argv) {
 		}
 
 		ev.data.fd = acc;
-		ev.events = epoll_opt | EPOLLIN;
-
-		//printf("Hello %d\n", acc);
+		ev.events = EPOLLIN | epoll_mask;
 
 		epoll_ctl(epfd, EPOLL_CTL_ADD, acc, &ev);
 	}

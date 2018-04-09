@@ -73,7 +73,9 @@ int send_fd(int client, int fd) {
 	return 0;
 }
 
+static int epoll_mask = EPOLLONESHOT | EPOLLET;
 static char reply[256] = "Reply";
+
 void event_loop(int pfd) {
 	struct epoll_event current_ev, ev;
 	struct epoll_event events[MAX_EVENTS];
@@ -105,30 +107,29 @@ void event_loop(int pfd) {
 				current_ev = events[i];
 
 				if (current_ev.data.fd == pfd) {
-					//printf("Event\n");
-
 					if ((acc = recv_fd(pfd)) == -1) {
 						fprintf(stderr, "Recv failed\n");
 					}
 
-					//printf("Hello %d\n", acc);
-
 					current_ev.data.fd = acc;
-					current_ev.events = EPOLLIN | EPOLLOUT;
+					current_ev.events = EPOLLIN | epoll_mask;
 
 					epoll_ctl(epfd, EPOLL_CTL_ADD, acc, &current_ev);
 				} else if (current_ev.events & EPOLLIN) {
 					read(current_ev.data.fd, buf, sizeof(buf));
-					//printf("[%d] Read from %d: %s\n", (int)self, current_ev.data.fd, buf);
 
-					if (strcmp("Hello", buf) != 0) {
-						//printf("[%d] Close: %d\n", (int)self, current_ev.data.fd);
+					if (strcmp("Hello", buf) == 0) {
+						current_ev.events = EPOLLOUT | epoll_mask;
+						epoll_ctl(epfd, EPOLL_CTL_MOD, current_ev.data.fd, &current_ev);
+					} else {
 						epoll_ctl(epfd, EPOLL_CTL_DEL, current_ev.data.fd, NULL);
 						close(current_ev.data.fd);
 					}
 				} else if (current_ev.events & EPOLLOUT) {
-					//printf("[%d] Write to %d: %s\n", (int)self, current_ev.data.fd, reply);
 					write(current_ev.data.fd, reply, strlen(reply));
+
+					current_ev.events = EPOLLIN | epoll_mask;
+					epoll_ctl(epfd, EPOLL_CTL_MOD, current_ev.data.fd, &current_ev);
 				}
 			}
 			break;
