@@ -7,8 +7,8 @@ Example implementations of IO multiplexed echo server over TCP/IP.
 |                       | model          | worker   | io multiplex | stable |
 |-----------------------|:--------------:|:--------:|:------------:|:------:|
 | simple echo           | single-process | 1        | x            | o      |
-| thread echo           | multi-thread   | variable | x            | x      |
-| fork echo             | multi-process  | variable | x            | x      |
+| thread echo           | multi-thread   | variable | x            | o      |
+| fork echo             | multi-process  | variable | x            | o      |
 | pre-thread echo       | multi-thread   | variable | x            | o      |
 | pre-fork echo         | multi-process  | variable | x            | o      |
 | simple epoll echo     | single-process | 1        | o            | o      |
